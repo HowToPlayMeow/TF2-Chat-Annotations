@@ -11,7 +11,7 @@
 #tryinclude <sourcecomms>
 #define REQUIRE_PLUGIN
 
-#define PLUGIN_VERSION "6.6.0"
+#define PLUGIN_VERSION "6.6.1"
 #define PLUGIN_PREFIX "\x03Chat Annotations\x01"
 
 public Plugin myinfo = 
@@ -39,29 +39,29 @@ ConVar cvAnnCMDRange;
 ConVar cvAnnRemove;
 ConVar cvAnnBlock;
 
-Handle  g_hAnnChatCookie;
-Handle  g_hAnnSoundCookie;
-Handle  g_hAnnRangeCookie;
-Handle  g_hTimerAnn = null;
-char    g_cLastMsg[MAXPLAYERS+1][256];                
-int     g_iAnnID[MAXPLAYERS+1];                         
-int     g_iAnnIDMeow = 1;                   
-int     g_ibasecomm;
-int     g_isourcecomms;
-bool    g_bAnnIsTeam[MAXPLAYERS+1];                     
-bool    g_bViewerSee[MAXPLAYERS+1][MAXPLAYERS+1];
-bool    g_bPlayerMoved[MAXPLAYERS+1];
-bool    g_bAnnEnabled[MAXPLAYERS+1];                    
-bool    g_bAnnSound[MAXPLAYERS+1];                      
-bool    g_bAnnShowRange[MAXPLAYERS+1];
-float   g_fAnnN[MAXPLAYERS+1];                          
-float   g_fLastPos[MAXPLAYERS+1][3];
-float   g_fLastAng[MAXPLAYERS+1][3];
-float   g_fCachePos[MAXPLAYERS+1][3];
+Handle  g_hAnnChatCookie;                               // Cookie CMD Chat
+Handle  g_hAnnSoundCookie;                              // Cookie CMD Sound
+Handle  g_hAnnRangeCookie;                              // Cookie CMD Range
+Handle  g_hTimerAnn = null;                             // Annotation Update Timer
+char    g_cLastMsg[MAXPLAYERS+1][256];                  // Last Chat Message
+int     g_iAnnID[MAXPLAYERS+1];                         // Player Annotation ID
+int     g_iAnnIDMeow = 1;                               // Annotation ID
+int     g_ibasecomm;                                    // There is a basecomm
+int     g_isourcecomms;                                 // There is a sourcecomms
+bool    g_bAnnIsTeam[MAXPLAYERS+1];                     // Team Chat
+bool    g_bViewerSee[MAXPLAYERS+1][MAXPLAYERS+1];       // Viewer Visibility Cache
+bool    g_bPlayerMoved[MAXPLAYERS+1];                   // Player Moved
+bool    g_bAnnEnabled[MAXPLAYERS+1];                    // Annotation Enabled
+bool    g_bAnnSound[MAXPLAYERS+1];                      // Sound Enabled
+bool    g_bAnnRange[MAXPLAYERS+1];                      // Range Enabled
+float   g_fAnnN[MAXPLAYERS+1];                          // Annotation lifetime (END)
+float   g_fLastPos[MAXPLAYERS+1][3];                    // Last Position
+float   g_fLastAng[MAXPLAYERS+1][3];                    // Last View Angles
+float   g_fCachePos[MAXPLAYERS+1][3];                   // Cached Position
 
 public void OnPluginStart() 
 {
-    CreateConVar("sm_cvann_version", PLUGIN_VERSION, "Version of TF2Chat Annotations.", FCVAR_NOTIFY | FCVAR_DONTRECORD);
+    CreateConVar("sm_cvann_version", PLUGIN_VERSION, "Version of TF2Chat Annotations", FCVAR_NOTIFY | FCVAR_DONTRECORD);
     cvAnnEnable    = CreateConVar("sm_cvann_enable", "1", "TF2Chat Annotations. (1 = Enable, 0 = Disable)", FCVAR_NONE, true, 0.0, true, 1.0);
     cvAnnRange     = CreateConVar("sm_cvann_range", "25", "Distance to See Annotations.", FCVAR_NONE, true, 0.0);
     cvAnnShowRange = CreateConVar("sm_cvann_show_range", "1", "Show Distance to speaker in Annotations. (1 = Enable, 0 = Disable)", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -90,7 +90,7 @@ public void OnPluginStart()
     HookEvent("player_spawn", ReAnnID);
     HookEvent("player_death", ReAnnID);
 
-    AutoExecConfig(true, "TF2Chat Annotations");
+    AutoExecConfig(true, "TF2Chat-Annotations");
     StartAnnotation();
 }
 
@@ -121,6 +121,7 @@ public void OnClientDisconnect(int client)
     HideAnnotation(client);
 }
 
+// Hide Annotations Spy (cloak/disguise)
 public void TF2_OnConditionAdded(int client, TFCond condition)
 {
     switch (condition)
@@ -138,7 +139,7 @@ void StartAnnotation()
     g_ibasecomm = LibraryExists("basecomm");
     g_isourcecomms = LibraryExists("sourcecomms");
 
-    char sound[PLATFORM_MAX_PATH];
+    static char sound[PLATFORM_MAX_PATH];
     cvAnnSound.GetString(sound, sizeof(sound));
     if (sound[0] != '\0')
         PrecacheSound(sound, true);
@@ -162,6 +163,7 @@ void StopAnnotation()
     }
 }
 
+// Reset Annotation and ID when Player Spawns or Dies
 public void ReAnnID(Event event, const char[] name, bool dontBroadcast)
 {
     int client = GetClientOfUserId(event.GetInt("userid"));
@@ -169,6 +171,7 @@ public void ReAnnID(Event event, const char[] name, bool dontBroadcast)
         HideAnnotation(client);
 }
 
+// Prevent Entity Overflow by Remove or Block Annotations
 bool RealServerCrash()
 {
     int RealCrash = GetEntityCount();
@@ -184,6 +187,7 @@ bool RealServerCrash()
     return true;
 }
 
+// Check Players
 bool YouIsCat(int client)
 {
     if (client <= 0 || !IsClientInGame(client))
@@ -198,6 +202,7 @@ bool YouIsCat(int client)
     return true;
 }
 
+// Got gagged
 bool CatToxic(int client)
 {
     #if defined _basecomm_included
@@ -220,6 +225,7 @@ bool CatToxic(int client)
     return true;
 }
 
+// Check Chat
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] argc)
 {
     bool enable = cvAnnEnable.BoolValue;
@@ -268,6 +274,7 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
     MeowMeow(client, isTeam, msg, life);
 }
 
+// Store Annotation data for a talking client
 void MeowMeow(int client, bool isTeam, const char[] msg, float life)
 {
     HideAnnotation(client);
@@ -280,6 +287,7 @@ void MeowMeow(int client, bool isTeam, const char[] msg, float life)
     g_fAnnN[client] = GetGameTime() + life;
 }
 
+// Main timer loop that Updates, Shows or Hides Annotations
 public Action UpdateAnnotation(Handle timer)
 {
     bool enable = cvAnnEnable.BoolValue;
@@ -303,9 +311,13 @@ public Action UpdateAnnotation(Handle timer)
         if (g_iAnnID[i] != 0)
         {
             if (!YouIsCat(i) || g_fAnnN[i] <= now)
+            {
                 HideAnnotation(i);
+            }
             else
+            {
                 activeTalkers[activeCount++] = i;
+            }
         }
     }
 
@@ -325,9 +337,11 @@ public Action UpdateAnnotation(Handle timer)
             YouSeeAnnotation(viewer, talker, talkerMoved, g_bPlayerMoved[viewer], rangeSqr, now);
         }
     }
+
     return Plugin_Continue;
 }
 
+// Check for Movement
 bool CatSleep(int client)
 {
     if (!IsClientInGame(client))
@@ -344,11 +358,14 @@ bool CatSleep(int client)
             g_fLastPos[client][i] = pos[i];
             g_fLastAng[client][i] = ang[i];
         }
+
         return true;
     }
+
     return false;
 }
 
+// Determine whether viewer can see talker Annotation
 void YouSeeAnnotation(int viewer, int talker, bool talkerMoved, bool viewerMoved, float rangeSqr, float now)
 {
     if (!IsClientInGame(viewer) || IsFakeClient(viewer))
@@ -390,6 +407,7 @@ void YouSeeAnnotation(int viewer, int talker, bool talkerMoved, bool viewerMoved
             HideAnnotationReal(talker, viewer);
             g_bViewerSee[viewer][talker] = false;
         }
+
         return;
     }
 
@@ -410,6 +428,7 @@ void YouSeeAnnotation(int viewer, int talker, bool talkerMoved, bool viewerMoved
     }
 }
 
+// Not Block Players
 public bool CatSee(int entity, int mask, any data)
 {
     if (entity == data)
@@ -421,6 +440,7 @@ public bool CatSee(int entity, int mask, any data)
     return true;
 }
 
+// Limit Number of visible Annotations per viewer
 bool MaxAnnotation(int viewer) 
 {
     if (!g_bAnnEnabled[viewer])
@@ -461,36 +481,39 @@ bool MaxAnnotation(int viewer)
         g_bViewerSee[viewer][oldestTalker] = false;
         return false;
     }
+
     return true;
 }
 
+// Show Annotation
 void ShowAnnotation(int client, int viewer, float life)
 {
     if (!IsClientInGame(client) || !IsClientInGame(viewer))
         return;
 
-    char sound[PLATFORM_MAX_PATH];
-    cvAnnSound.GetString(sound, sizeof(sound));
     bool See = cvAnnShowRange.BoolValue;
+    static char sound[PLATFORM_MAX_PATH]; 
+    cvAnnSound.GetString(sound, sizeof(sound));
 
     Event ev = CreateEvent("show_annotation");
-    if (ev)
-    {
-        ev.SetInt("follow_entindex", client);
-        ev.SetInt("id", g_iAnnID[client]);
-        ev.SetString("text", g_cLastMsg[client]);
-        ev.SetFloat("lifetime", life);
+    if (!ev)
+        return;
 
-        if (g_bAnnShowRange[viewer] && viewer != client)
-            ev.SetBool("show_distance", See);
-       
-        if (g_bAnnSound[viewer] && sound[0] != '\0')
-            ev.SetString("play_sound", sound);
+    ev.SetInt("follow_entindex", client);
+    ev.SetInt("id", g_iAnnID[client]);
+    ev.SetString("text", g_cLastMsg[client]);
+    ev.SetFloat("lifetime", life);
 
-        ev.FireToClient(viewer);
-    }
+    if (g_bAnnSound[viewer] && sound[0] != '\0')
+        ev.SetString("play_sound", sound);
+
+    if (g_bAnnRange[viewer] && viewer != client)
+        ev.SetBool("show_distance", See);
+    
+    ev.FireToClient(viewer);
 }
 
+// Check and Remove
 void HideAnnotation(int client)
 {
     if (g_iAnnID[client] != 0)
@@ -504,27 +527,34 @@ void HideAnnotation(int client)
         g_bViewerSee[i][client] = false;
 }
 
+// Real Remove
 void HideAnnotationReal(int client, int viewer)
 {
     Event ev = CreateEvent("hide_annotation");
-    if (!ev) 
+    if (!ev)
         return;
 
     ev.SetInt("follow_entindex", client);
     ev.SetInt("id", g_iAnnID[client]);
 
     if (viewer > 0 && IsClientInGame(viewer))
+    {
         ev.FireToClient(viewer);
+    }
     else
+    {
         ev.Fire();
+    }
 }
 
+// Remove ALL
 void RemoveAnnotationAll()
 {
     for (int i = 1; i <= MaxClients; i++)
         HideAnnotation(i);
 }
 
+// Load Cookies Client 
 public void OnClientCookiesCached(int client)
 {
     bool cmdann   = cvAnnCMDAnn.BoolValue;
@@ -534,40 +564,54 @@ public void OnClientCookiesCached(int client)
     char vAnn[8];
     GetClientCookie(client, g_hAnnChatCookie, vAnn, sizeof(vAnn));
     if (vAnn[0] == '\0')
+    {
         g_bAnnEnabled[client] = cmdann;
+    }
     else
+    {
         g_bAnnEnabled[client] = (StringToInt(vAnn) == 1);
+    }
 
     char vSound[8];
     GetClientCookie(client, g_hAnnSoundCookie, vSound, sizeof(vSound));
     if (vSound[0] == '\0')
+    {
         g_bAnnSound[client] = cmdsound;
+    }
     else
+    {
         g_bAnnSound[client] = (StringToInt(vSound) == 1);
+    }  
 
     char vRange[8];
     GetClientCookie(client, g_hAnnRangeCookie, vRange, sizeof(vRange));
     if (vRange[0] == '\0')
-        g_bAnnShowRange[client] = cmdrange;
+    {
+        g_bAnnRange[client] = cmdrange;
+    }
     else
-        g_bAnnShowRange[client] = (StringToInt(vRange) == 1);
+    {
+        g_bAnnRange[client] = (StringToInt(vRange) == 1);
+    }
 }
 
+// Open Annotation settings menu
 public Action Command_Settings(int client, int args)
 {
     Menu_Settings(client);
     return Plugin_Handled;
 }
 
+// Open Annotation settings menu
 void Menu_Settings(int client)
 {
     if (client <= 0 || !IsClientInGame(client))
         return;
 
-    char sound[PLATFORM_MAX_PATH];
-    cvAnnSound.GetString(sound, sizeof(sound));
     bool See = cvAnnShowRange.BoolValue;
-
+    static char sound[PLATFORM_MAX_PATH];
+    cvAnnSound.GetString(sound, sizeof(sound));
+    
     Menu menu = CreateMenu(MenuHandler_Settings);
     menu.SetTitle("[Chat Annotations Settings]");
 
@@ -583,7 +627,7 @@ void Menu_Settings(int client)
 
     if (g_bAnnEnabled[client] && See)
     {
-        Format(buffer, sizeof(buffer), "Range: [%s]", g_bAnnShowRange[client] ? "Enable" : "Disable");
+        Format(buffer, sizeof(buffer), "Range: [%s]", g_bAnnRange[client] ? "Enable" : "Disable");
         menu.AddItem("cvann_range", buffer);
     }
     
@@ -591,17 +635,18 @@ void Menu_Settings(int client)
     menu.Display(client, MENU_TIME_FOREVER);
 }
 
+// Save Settings
 public int MenuHandler_Settings(Menu menu, MenuAction action, int client, int param2)
 {
     switch (action)
     {
         case MenuAction_Select:
         {
-            char value[8];
-            char sound[PLATFORM_MAX_PATH];
-            cvAnnSound.GetString(sound, sizeof(sound));
             bool See = cvAnnShowRange.BoolValue;
-
+            char value[8];
+            static char sound[PLATFORM_MAX_PATH];
+            cvAnnSound.GetString(sound, sizeof(sound));
+            
             switch (param2)
             {
                 case 0:
@@ -612,7 +657,9 @@ public int MenuHandler_Settings(Menu menu, MenuAction action, int client, int pa
                     SetClientCookie(client, g_hAnnChatCookie, value);
                     
                     if (g_bAnnEnabled[client])
+                    {
                         PrintToChat(client, "\x01[%s]\x01 Enable: \x05Chat", PLUGIN_PREFIX);
+                    }
                     else
                     {
                         PrintToChat(client, "\x01[%s]\x01 Disable: \x05Chat", PLUGIN_PREFIX);
@@ -635,21 +682,29 @@ public int MenuHandler_Settings(Menu menu, MenuAction action, int client, int pa
                     SetClientCookie(client, g_hAnnSoundCookie, value);
 
                     if (g_bAnnEnabled[client] && g_bAnnSound[client] && sound[0] != '\0')
+                    {
                         PrintToChat(client, "\x01[%s]\x01 Enable: \x05Sound", PLUGIN_PREFIX);
+                    }
                     else
+                    {
                         PrintToChat(client, "\x01[%s]\x01 Disable: \x05Sound", PLUGIN_PREFIX);
+                    }
                 }
                 case 2:
                 {
-                    g_bAnnShowRange[client] = !g_bAnnShowRange[client];
+                    g_bAnnRange[client] = !g_bAnnRange[client];
 
-                    IntToString(g_bAnnShowRange[client] ? 1 : 0, value, sizeof(value));
+                    IntToString(g_bAnnRange[client] ? 1 : 0, value, sizeof(value));
                     SetClientCookie(client, g_hAnnRangeCookie, value);
                     
-                    if (g_bAnnEnabled[client] && g_bAnnShowRange[client] && See)
+                    if (g_bAnnEnabled[client] && g_bAnnRange[client] && See)
+                    {
                         PrintToChat(client, "\x01[%s]\x01 Enable: \x05Range", PLUGIN_PREFIX);
+                    }
                     else
+                    {
                         PrintToChat(client, "\x01[%s]\x01 Disable: \x05Range", PLUGIN_PREFIX);
+                    }
                 }
             }
 
