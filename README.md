@@ -25,7 +25,7 @@
 ## ConVar
 |Name|Default Value|Description|
 |-|:-:|-|
-|`sm_cvann_version`|`6.6.0`|Version of TF2Chat Annotations.|
+|`sm_cvann_version`|`6.6.1`|Version of TF2Chat Annotations.|
 |`sm_cvann_enable`|`1`|TF2Chat Annotations.<br>(1 = Enable, 0 = Disable)|
 |`sm_cvann_range`|`25`|Distance to See Annotations.|
 |`sm_cvann_show_range`|`1`|Show Distance to speaker in Annotations.<br>(1 = Enable, 0 = Disable)|
